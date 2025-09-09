@@ -3,10 +3,12 @@
 #include <vector>
 #include <cmath>
 #include <string>
+#include <iomanip>  // for std::scientific
 
-const double G = 6.674e-11; // gravitational constant
-const double SOFTENING = 1e3; // softening factor to avoid division by zero
+const double G = 6.674e-11;    // Gravitational constant
+const double SOFTENING = 1e3;  // Softening factor to avoid singularities
 
+// Particle structure
 struct Particle {
     double mass;
     double x, y, z;
@@ -25,6 +27,7 @@ int main(int argc, char* argv[]) {
     int steps = std::stoi(argv[3]);
     int dump_interval = std::stoi(argv[4]);
 
+    // Open input file
     std::ifstream infile(filename);
     if (!infile) {
         std::cerr << "Cannot open file " << filename << "\n";
@@ -32,36 +35,40 @@ int main(int argc, char* argv[]) {
     }
 
     int N;
-    infile >> N; // number of particles
+    infile >> N;  // number of particles
     std::vector<Particle> particles(N);
 
-    // Read particle data
+    // Read particle data from file
     for (int i = 0; i < N; ++i) {
         double mass, x, y, z, vx, vy, vz;
         infile >> mass >> x >> y >> z >> vx >> vy >> vz;
         particles[i] = {mass, x, y, z, vx, vy, vz, 0, 0, 0};
 
-        // skip extra columns
+        // Skip the rest of the line (extra columns, if any)
         std::string dummy;
         std::getline(infile, dummy);
     }
+    infile.close();
 
+    // Open output file
     std::ofstream outfile("output.tsv");
     if (!outfile) {
         std::cerr << "Cannot open output.tsv\n";
         return 1;
     }
 
-    // Simulation loop
+    outfile << std::scientific << std::setprecision(6); // readable scientific format
+
+    // Main simulation loop
     for (int step = 0; step <= steps; ++step) {
 
         // Reset forces
         for (auto &p : particles)
             p.fx = p.fy = p.fz = 0.0;
 
-        // Compute forces
+        // Compute gravitational forces
         for (int i = 0; i < N; ++i) {
-            for (int j = i+1; j < N; ++j) {
+            for (int j = i + 1; j < N; ++j) {
                 double dx = particles[j].x - particles[i].x;
                 double dy = particles[j].y - particles[i].y;
                 double dz = particles[j].z - particles[i].z;
@@ -69,10 +76,12 @@ int main(int argc, char* argv[]) {
                 double distSixth = distSqr * std::sqrt(distSqr);
                 double F = G * particles[i].mass * particles[j].mass / distSixth;
 
+                // Update forces on particle i
                 particles[i].fx += F * dx;
                 particles[i].fy += F * dy;
                 particles[i].fz += F * dz;
 
+                // Update forces on particle j (Newton's 3rd law)
                 particles[j].fx -= F * dx;
                 particles[j].fy -= F * dy;
                 particles[j].fz -= F * dz;
@@ -90,7 +99,7 @@ int main(int argc, char* argv[]) {
             p.z += p.vz * dt;
         }
 
-        // Dump state at intervals
+        // Dump state to output file at intervals
         if (step % dump_interval == 0) {
             outfile << N;
             for (auto &p : particles) {
@@ -104,5 +113,6 @@ int main(int argc, char* argv[]) {
     }
 
     outfile.close();
+    
     return 0;
 }
