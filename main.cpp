@@ -2,30 +2,17 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
-#include <sstream>
+#include <sstream>  // for istringstream
 #include <string>
 
-// Structure to hold particle data
 struct Particle {
-    double mass = 0;
-    double x = 0, y = 0, z = 0;
-    double vx = 0, vy = 0, vz = 0;
-    double fx = 0, fy = 0, fz = 0;
+    double mass;
+    double x, y, z;
+    double vx, vy, vz;
+    double fx, fy, fz;
 };
 
-// Gravitational constant
-const double G = 6.67430e-11;
-
-// Function to safely read a number, returns 0 if missing
-double safeRead(std::istringstream &ss) {
-    double val = 0;
-    ss >> val;
-    if (ss.fail()) {
-        ss.clear();
-        val = 0;
-    }
-    return val;
-}
+const double G = 6.67430e-11; // Gravitational constant
 
 int main(int argc, char* argv[]) {
     if (argc != 5) {
@@ -40,27 +27,25 @@ int main(int argc, char* argv[]) {
 
     std::ifstream file(inputFile);
     if (!file.is_open()) {
-        std::cerr << "Error opening file: " << inputFile << "\n";
+        std::cerr << "Error: cannot open input file\n";
         return 1;
     }
 
+    std::string line;
+    std::getline(file, line);          // Read the single line
+    std::istringstream ss(line);
+
     int n;
-    file >> n;
+    ss >> n;                           // First number is number of particles
     std::vector<Particle> particles(n);
 
-    // Read particle data safely
+    // Read all particle data sequentially from the line
     for (int i = 0; i < n; i++) {
-        std::string line;
-        std::getline(file, line); // read rest of the line
-        if(line.empty()) std::getline(file, line);
-        std::istringstream ss(line);
-        particles[i].mass = safeRead(ss);
-        particles[i].x    = safeRead(ss);
-        particles[i].y    = safeRead(ss);
-        particles[i].z    = safeRead(ss);
-        particles[i].vx   = safeRead(ss);
-        particles[i].vy   = safeRead(ss);
-        particles[i].vz   = safeRead(ss);
+        ss >> particles[i].mass
+           >> particles[i].x >> particles[i].y >> particles[i].z
+           >> particles[i].vx >> particles[i].vy >> particles[i].vz;
+        // Initialize forces to 0
+        particles[i].fx = particles[i].fy = particles[i].fz = 0;
     }
 
     // Main simulation loop
@@ -68,13 +53,13 @@ int main(int argc, char* argv[]) {
         // Reset forces
         for (auto &p : particles) p.fx = p.fy = p.fz = 0;
 
-        // Compute gravitational forces
+        // Compute pairwise gravitational forces
         for (int i = 0; i < n; i++) {
-            for (int j = i+1; j < n; j++) {
+            for (int j = i + 1; j < n; j++) {
                 double dx = particles[j].x - particles[i].x;
                 double dy = particles[j].y - particles[i].y;
                 double dz = particles[j].z - particles[i].z;
-                double dist2 = dx*dx + dy*dy + dz*dz + 1e-10; // avoid divide by 0
+                double dist2 = dx*dx + dy*dy + dz*dz + 1e-10; // avoid div 0
                 double dist = std::sqrt(dist2);
                 double F = G * particles[i].mass * particles[j].mass / dist2;
 
@@ -86,25 +71,24 @@ int main(int argc, char* argv[]) {
                 particles[i].fy += Fy;
                 particles[i].fz += Fz;
 
-                particles[j].fx -= Fx;
+                particles[j].fx -= Fx; // Newton's third law
                 particles[j].fy -= Fy;
                 particles[j].fz -= Fz;
             }
         }
 
-        // Update velocities and positions safely
+        // Update velocities and positions
         for (auto &p : particles) {
-            if (p.mass != 0) {
-                p.vx += p.fx / p.mass * dt;
-                p.vy += p.fy / p.mass * dt;
-                p.vz += p.fz / p.mass * dt;
-            }
+            p.vx += p.fx / p.mass * dt;
+            p.vy += p.fy / p.mass * dt;
+            p.vz += p.fz / p.mass * dt;
+
             p.x += p.vx * dt;
             p.y += p.vy * dt;
             p.z += p.vz * dt;
         }
 
-        // Dump output at intervals
+        // Output at dump intervals
         if (step % dumpInterval == 0) {
             std::ofstream out("output.tsv", step == 0 ? std::ios::trunc : std::ios::app);
             out << n;
