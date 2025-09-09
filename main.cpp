@@ -4,6 +4,7 @@
 #include <cmath>
 #include <string>
 
+// Particle struct stores mass, position, velocity, and forces
 struct Particle {
     double mass;
     double x, y, z;
@@ -11,7 +12,7 @@ struct Particle {
     double fx, fy, fz;
 };
 
-const double G = 6.67430e-11; // Gravitational constant
+const double G = 6.67430e-11; // gravitational constant
 
 int main(int argc, char* argv[]) {
     if (argc != 5) {
@@ -25,15 +26,23 @@ int main(int argc, char* argv[]) {
     int dumpInterval = std::stoi(argv[4]);
 
     std::ifstream file(inputFile);
+    if (!file) {
+        std::cerr << "Cannot open input file\n";
+        return 1;
+    }
+
     int n;
     file >> n;
     std::vector<Particle> particles(n);
 
+    // Read initial data from input file
     for (int i = 0; i < n; i++) {
         file >> particles[i].mass
              >> particles[i].x >> particles[i].y >> particles[i].z
              >> particles[i].vx >> particles[i].vy >> particles[i].vz;
     }
+
+    std::ofstream out("output.tsv"); // open output file once
 
     // Main simulation loop
     for (int step = 0; step < steps; step++) {
@@ -42,11 +51,11 @@ int main(int argc, char* argv[]) {
 
         // Compute pairwise gravitational forces
         for (int i = 0; i < n; i++) {
-            for (int j = i+1; j < n; j++) {
+            for (int j = i + 1; j < n; j++) {
                 double dx = particles[j].x - particles[i].x;
                 double dy = particles[j].y - particles[i].y;
                 double dz = particles[j].z - particles[i].z;
-                double dist2 = dx*dx + dy*dy + dz*dz + 1e-10; // avoid divide by 0
+                double dist2 = dx*dx + dy*dy + dz*dz + 1e-10; // avoid div 0
                 double dist = std::sqrt(dist2);
                 double F = G * particles[i].mass * particles[j].mass / dist2;
 
@@ -75,19 +84,15 @@ int main(int argc, char* argv[]) {
             p.z += p.vz * dt;
         }
 
-        // Output at dump intervals
+        // Output positions at dump intervals
         if (step % dumpInterval == 0) {
-            std::ofstream out("output.tsv");
-            out << n;
             for (auto &p : particles) {
-                out << "\t" << p.mass
-                    << "\t" << p.x << "\t" << p.y << "\t" << p.z
-                    << "\t" << p.vx << "\t" << p.vy << "\t" << p.vz
-                    << "\t" << p.fx << "\t" << p.fy << "\t" << p.fz;
+                out << p.x << "\t" << p.y << "\t" << p.z << "\t";
             }
             out << "\n";
         }
     }
 
+    out.close();
     return 0;
 }
