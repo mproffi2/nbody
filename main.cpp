@@ -3,10 +3,10 @@
 #include <vector>
 #include <cmath>
 #include <string>
-#include <iomanip>  // for std::scientific
+#include <iomanip>  
 
 const double G = 6.674e-11;    // Gravitational constant
-const double SOFTENING = 1e3;  // Softening factor to avoid singularities
+const double SOFTENING = 1e3;  
 
 // Particle structure
 struct Particle {
@@ -43,8 +43,6 @@ int main(int argc, char* argv[]) {
         double mass, x, y, z, vx, vy, vz;
         infile >> mass >> x >> y >> z >> vx >> vy >> vz;
         particles[i] = {mass, x, y, z, vx, vy, vz, 0, 0, 0};
-
-        // Skip the rest of the line (extra columns, if any)
         std::string dummy;
         std::getline(infile, dummy);
     }
@@ -57,7 +55,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    outfile << std::scientific << std::setprecision(6); // readable scientific format
+    outfile << std::scientific << std::setprecision(6); 
 
     // Main simulation loop
     for (int step = 0; step <= steps; ++step) {
@@ -81,7 +79,7 @@ int main(int argc, char* argv[]) {
                 particles[i].fy += F * dy;
                 particles[i].fz += F * dz;
 
-                // Update forces on particle j (Newton's 3rd law)
+                // Update forces on particle j 
                 particles[j].fx -= F * dx;
                 particles[j].fy -= F * dy;
                 particles[j].fz -= F * dz;
