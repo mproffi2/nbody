@@ -2,8 +2,10 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
-#include <sstream>  // for istringstream
 #include <string>
+
+const double G = 6.674e-11; // gravitational constant
+const double SOFTENING = 1e3; // softening factor to avoid division by zero
 
 struct Particle {
     double mass;
@@ -12,68 +14,68 @@ struct Particle {
     double fx, fy, fz;
 };
 
-const double G = 6.67430e-11; // Gravitational constant
-
 int main(int argc, char* argv[]) {
-    if (argc != 5) {
-        std::cout << "Usage: " << argv[0] << " input.tsv dt steps dumpInterval\n";
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " input_file dt steps dump_interval\n";
         return 1;
     }
 
-    std::string inputFile = argv[1];
+    std::string filename = argv[1];
     double dt = std::stod(argv[2]);
     int steps = std::stoi(argv[3]);
-    int dumpInterval = std::stoi(argv[4]);
+    int dump_interval = std::stoi(argv[4]);
 
-    std::ifstream file(inputFile);
-    if (!file.is_open()) {
-        std::cerr << "Error: cannot open input file\n";
+    std::ifstream infile(filename);
+    if (!infile) {
+        std::cerr << "Cannot open file " << filename << "\n";
         return 1;
     }
 
-    std::string line;
-    std::getline(file, line);          // Read the single line
-    std::istringstream ss(line);
+    int N;
+    infile >> N; // number of particles
+    std::vector<Particle> particles(N);
 
-    int n;
-    ss >> n;                           // First number is number of particles
-    std::vector<Particle> particles(n);
+    // Read particle data
+    for (int i = 0; i < N; ++i) {
+        double mass, x, y, z, vx, vy, vz;
+        infile >> mass >> x >> y >> z >> vx >> vy >> vz;
+        particles[i] = {mass, x, y, z, vx, vy, vz, 0, 0, 0};
 
-    // Read all particle data sequentially from the line
-    for (int i = 0; i < n; i++) {
-        ss >> particles[i].mass
-           >> particles[i].x >> particles[i].y >> particles[i].z
-           >> particles[i].vx >> particles[i].vy >> particles[i].vz;
-        // Initialize forces to 0
-        particles[i].fx = particles[i].fy = particles[i].fz = 0;
+        // skip extra columns
+        std::string dummy;
+        std::getline(infile, dummy);
     }
 
-    // Main simulation loop
-    for (int step = 0; step < steps; step++) {
-        // Reset forces
-        for (auto &p : particles) p.fx = p.fy = p.fz = 0;
+    std::ofstream outfile("output.tsv");
+    if (!outfile) {
+        std::cerr << "Cannot open output.tsv\n";
+        return 1;
+    }
 
-        // Compute pairwise gravitational forces
-        for (int i = 0; i < n; i++) {
-            for (int j = i + 1; j < n; j++) {
+    // Simulation loop
+    for (int step = 0; step <= steps; ++step) {
+
+        // Reset forces
+        for (auto &p : particles)
+            p.fx = p.fy = p.fz = 0.0;
+
+        // Compute forces
+        for (int i = 0; i < N; ++i) {
+            for (int j = i+1; j < N; ++j) {
                 double dx = particles[j].x - particles[i].x;
                 double dy = particles[j].y - particles[i].y;
                 double dz = particles[j].z - particles[i].z;
-                double dist2 = dx*dx + dy*dy + dz*dz + 1e-10; // avoid div 0
-                double dist = std::sqrt(dist2);
-                double F = G * particles[i].mass * particles[j].mass / dist2;
+                double distSqr = dx*dx + dy*dy + dz*dz + SOFTENING*SOFTENING;
+                double distSixth = distSqr * std::sqrt(distSqr);
+                double F = G * particles[i].mass * particles[j].mass / distSixth;
 
-                double Fx = F * dx / dist;
-                double Fy = F * dy / dist;
-                double Fz = F * dz / dist;
+                particles[i].fx += F * dx;
+                particles[i].fy += F * dy;
+                particles[i].fz += F * dz;
 
-                particles[i].fx += Fx;
-                particles[i].fy += Fy;
-                particles[i].fz += Fz;
-
-                particles[j].fx -= Fx; // Newton's third law
-                particles[j].fy -= Fy;
-                particles[j].fz -= Fz;
+                particles[j].fx -= F * dx;
+                particles[j].fy -= F * dy;
+                particles[j].fz -= F * dz;
             }
         }
 
@@ -88,19 +90,19 @@ int main(int argc, char* argv[]) {
             p.z += p.vz * dt;
         }
 
-        // Output at dump intervals
-        if (step % dumpInterval == 0) {
-            std::ofstream out("output.tsv", step == 0 ? std::ios::trunc : std::ios::app);
-            out << n;
+        // Dump state at intervals
+        if (step % dump_interval == 0) {
+            outfile << N;
             for (auto &p : particles) {
-                out << "\t" << p.mass
-                    << "\t" << p.x << "\t" << p.y << "\t" << p.z
-                    << "\t" << p.vx << "\t" << p.vy << "\t" << p.vz
-                    << "\t" << p.fx << "\t" << p.fy << "\t" << p.fz;
+                outfile << "\t" << p.mass
+                        << "\t" << p.x << "\t" << p.y << "\t" << p.z
+                        << "\t" << p.vx << "\t" << p.vy << "\t" << p.vz
+                        << "\t" << p.fx << "\t" << p.fy << "\t" << p.fz;
             }
-            out << "\n";
+            outfile << "\n";
         }
     }
 
+    outfile.close();
     return 0;
 }
